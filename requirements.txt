@@ -1,4 +1,5 @@
 langchain_community
+langchain
 langchain-text-splitters
 flask
 fastembed
