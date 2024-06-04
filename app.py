@@ -4,11 +4,7 @@ from langchain_community.llms import Ollama
 app = Flask(__name__)
 
 
-# llm = Ollama(model="llama3")
-
-# response = llm.invoke("Tell me a cat joke")
-
-# print(response)
+cached_llm = Ollama(model="llama3")
 
 
 @app.route("/ai", methods=["POST"])
@@ -19,8 +15,9 @@ def aiPost():
 
     print(f"query: {query}")
 
+    response = cached_llm.invoke(query)
 
-    response_answer = "Sample Response. Query: " + query
+    response_answer = {"answer": response}
     return response_answer
 
 
