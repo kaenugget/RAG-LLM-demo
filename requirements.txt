@@ -1,2 +1,7 @@
 langchain_community
+langchain-text-splitters
 flask
+fastembed
+chromadb
+pdfplumber
+pip-system-certs
