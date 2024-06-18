@@ -1,10 +1,8 @@
-jupyter
-ipykernel
 langchain_community
 langchain
 langchain-text-splitters
-langgraph
-tiktoken
+flask
+fastembed
 chromadb
+pdfplumber
 pip-system-certs
-gradio
