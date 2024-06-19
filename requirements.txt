@@ -8,3 +8,4 @@ tiktoken
 chromadb
 pip-system-certs
 gradio
+openpyxl
