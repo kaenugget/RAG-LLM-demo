@@ -2,3 +2,4 @@ venv
 files
 db
 .DS_Store
+/__pycache__

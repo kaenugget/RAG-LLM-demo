@@ -4,6 +4,8 @@ from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 import pandas as pd
 import pickle
 import gradio as gr
+from theme import JS_LIGHT_THEME, CSS
+from logger import Logger
 from langchain.prompts import PromptTemplate
 from langchain_community.chat_models import ChatOllama
 from langchain_core.output_parsers import JsonOutputParser
@@ -14,50 +16,7 @@ from langchain.callbacks.manager import CallbackManager
 
 
 local_llm="llama3"
-
-###Extract from PDF
-def initialize_vector_store():
-    # Step 1: Read the contents of documents.txt
-    with open('db/documents.txt', 'r') as file:
-        documents = file.readlines()
-
-    # Ensure the documents are in the right format (list of strings)
-    documents = [doc.strip() for doc in documents]
-
-    # Step 2: Initialize the embedding model
-    embedding = FastEmbedEmbeddings()
-
-    # Step 3: Initialize the Chroma vector store with the embedding function
-    persist_directory = "db"
-    if not os.path.exists(persist_directory):
-        os.makedirs(persist_directory)
-
-    vector_store = Chroma(persist_directory=persist_directory, embedding_function=embedding)
-
-    # Step 4: Add documents to the vector store
-    for document in documents:
-        vector_store.add_texts([document])
-
-    return vector_store
-
-def get_retriever():
-    persist_directory = "db"
-    
-    # Check if vector store already exists
-    if not os.path.exists(persist_directory):
-        vector_store = initialize_vector_store()
-    else:
-        # Initialize Chroma vector store without re-adding texts
-        embedding = FastEmbedEmbeddings()
-        vector_store = Chroma(persist_directory=persist_directory, embedding_function=embedding)
-
-    # Step 5: Create the retriever
-    retriever = vector_store.as_retriever()
-    return retriever
-
-retriever = get_retriever()
-print("Retriever created successfully!")
-
+logger_instance = Logger("logfile.txt")
 
 ### Extract from Excel
 def parse_and_save_excel(file_path, sheet_name, save_path):
@@ -128,10 +87,13 @@ llm = ChatOllama(model=local_llm, format="json", temperature = 0)
 prompt= PromptTemplate(
     template=""" <|begin_of_text|><|start_header_id|>system<|end_header_id|> 
     You are an indentifier.
-    Identify the error code from the given question / sentence. An example could be VCA373 . Error codes usually start with a few capital alphabets followed by a few numbers
-    It does not need to be a stringent test. The goal is to identify only the error code and return that. \n
-    Return the error code if it is present, else return an empty string ''. \n
-    Provide the error code as a JSON with a single key 'error_code' and no preamble or explanation.
+    Identify the error codes from the given question / sentence. An example could be VCA373 . Error codes usually start with a few capital alphabets followed by a few numbers\n
+    It does not need to be a stringent test. The goal is to identify only the error codes and return that. \n
+    It MUST have both the alpahbets and numbers together.\n
+    Provide the error codes as a JSON with a single key 'error_code' and no preamble or explanation.\n
+    Return the error codes if they are present, else return an the JSON with the value as an empty listt for example 'error_code' : []. \n
+    Put the error codes in a list. For example 'error_code' : ['VCA373'] .\n
+    If there are multiple error codes then for example 'error_code' : ['VCA373', 'CHC016'].\n
     <|eot_id|><|start_header_id|>user<|end_header_id|>
     Here is the sentence: \n\n {question}\n\n
     <|eot_id|><|start_header_id|>assistant<|end_header_id|>
@@ -142,63 +104,82 @@ error_identifier = prompt | llm | JsonOutputParser()
 
 def extract_error_code(question):
     error_code_JSON = error_identifier.invoke({"question": question})
+    print("error_code_JSON: ", error_code_JSON)
     return error_code_JSON["error_code"]
 
 ### Document Retrieval and Combination
-def retrieve_and_combine_documents(question, retriever):
-    error_code = extract_error_code(question)
+def retrieve_and_combine_documents(question):
+    error_code_list = extract_error_code(question)
     combined_docs = []
 
-    if error_code:
-        print(f"Extracted Error Code: {error_code}")
+    if error_code_list != []:
+        print(f"Extracted Error Code: {error_code_list}")
 
-        with open('db/documents.txt', 'r') as file:
-            lines = file.readlines()
+        with open('db/healthcare.txt', 'r') as file1:
+            lines = file1.readlines()
 
-        matched_snippets = set()
-        skip_lines = 0
-        skip = False
-        for i, line in enumerate(lines):
+        with open('db/UCFMSG_validation_codes.txt', 'r') as file2:
+            lines += file2.readlines()
 
-            skip_lines -= 1
+        for error_index in range(0, len(error_code_list)):
 
-            if error_code in line and not skip:
-                start = max(0, i - 15)
-                end = min(len(lines), i + 11)
-                snippet = ''.join(lines[start:end])
-                matched_snippets.add(snippet)
+            matched_snippets = []
+            skip_lines = 0
+            skip = False
+            doc_count = 0
 
-                skip_lines = 10
-                skip = True
+            for i in range(0, len(lines)):
 
-                if len(matched_snippets) >= 3:
-                    break
+                skip_lines -= 1
 
-            if skip_lines <= 0:
-                skip = False
-                skip = 0
+                if error_code_list[error_index] in lines[i] and not skip:
+                    docu_count += 1
+                    start = max(0, i - 15)
+                    end = min(len(lines), i + 7)
+                    snippet = ''.join(lines[start:end])
 
-        combined_docs = list(matched_snippets)[:3]
-        print("Exact match found in documents.txt")
-        print("-------------------------------")
-        for idx, doc in enumerate(combined_docs):
-            print(f"combined_doc {idx}: {doc}")
+                    header = f"Document {doc_count} for error {error_code_list[error_index]}:\n"
+            
+                    # Prepend the header to the snippet
+                    snippet_with_header = header + snippet
+                    
+                    # Append the modified snippet to the matched snippets list
+                    matched_snippets.append(snippet_with_header)
+
+                    skip_lines = 10
+                    skip = True
+
+                    if len(matched_snippets) >= 4:
+                        break
+
+                if skip_lines <= 0:
+                    skip = False
+                    skip = 0
+
+
+            result = matched_snippets[:4]
+            combined_docs.append(result)
+            print(result)
+
+            if result != []:
+                print("Exact match found in healthcare.txt for error", error_code_list[error_index])
+                print("-------------------------------")
+            else:
+                 print(f"No Error Code {error_code_list[error_index]} found in the documents.")
 
     else:
         print("No Error Code found in the question.")
-        # Retrieve documents only for the general question if no error code is found
-        combined_docs = retriever(question)
 
-    return combined_docs
+    return combined_docs, error_code_list
 
 
 ### Hallucination checker
 llm = ChatOllama(model=local_llm, format="json", temperature=0)
 prompt= PromptTemplate(
     template=""" <|begin_of_text|><|start_header_id|>system<|end_header_id|> 
-    You are a grader assessing whether an answer is grounded in / supported by a set of facts.
-    Give a binary score 'yes' or 'no' score to indicate whether the answer is grounded in / supported by a set of facts.
-    Provide the binary score as a JSON with a single ey 'score' and no preamble or explanation.
+    You are a grader assessing whether an answer is grounded in / supported by a set of facts.\n
+    Give a binary score 'yes' or 'no' score to indicate whether the answer is grounded in / supported by a set of facts.\n
+    Provide the binary score as a JSON with a single ey 'score' and no preamble or explanation.\n
     <|eot_id|><|start_header_id|>user<|end_header_id|>
     Here are the facts: 
     \n-------\n 
@@ -215,9 +196,9 @@ hallucination_grader = prompt | llm | JsonOutputParser()
 llm = ChatOllama(model=local_llm, format="json", temperature=0)
 prompt= PromptTemplate(
     template=""" <|begin_of_text|><|start_header_id|>system<|end_header_id|> 
-    You are a grader assessing whether an answer is addressing the question properly.
-    Give a binary score 'yes' or 'no' score to indicate whether the answer addresses the question well.
-    Provide the binary score as a JSON with a single ey 'score' and no preamble or explanation.
+    You are a grader assessing whether an answer is addressing the question properly.\n
+    Give a binary score 'yes' or 'no' score to indicate whether the answer addresses the question well.\n
+    Provide the binary score as a JSON with a single ey 'score' and no preamble or explanation.\n
     <|eot_id|><|start_header_id|>user<|end_header_id|>
     Question: {question}
     Here is the answer: {generation} <|eot_id|><|start_header_id|>assistant<|end_header_id|>
@@ -230,12 +211,13 @@ answer_grader = prompt | llm | JsonOutputParser()
 ### Context formatter
 context_formatting_template = PromptTemplate(
     template=""" <|begin_of_text|><|start_header_id|>system<|end_header_id|> 
-    You are an assistant for formatting tasks. Do not alter the content or add in any new content.
-    You are only in charge of reformatting the context given to you. 
-    The context is parsed from a pdf and might be part of code, descriptions or tables. Do your best to format it nicely into markdown.
-    The context could also be in the form of a JSON, format it into a table if suitable.
-    Format the given "context" variable and return it in the format "Context: (formatted context)". 
-    If no "context" variable is given, just return an empty string.
+    You are an assistant for formatting tasks. Do not alter the content or add in any new content.\n
+    You are only in charge of reformatting the context given to you. \n
+    The context is parsed from a pdf and might be part of code, descriptions or tables. Do your best to format it nicely and do not format everything into code by adding "```" at the start.\n
+    Only format into code when required such as for "definition" which can appear more than once.\n
+    At the end of the context, there should be a JSON string, format it into a table if suitable and ensure it is not in a '<code>' block.\n
+    Format the given "context" variable and return it in the format "Context: (formatted context)". \n
+    If no "context" variable is given, just return an empty string.\n
     <|eot_id|><|start_header_id|>user<|end_header_id|>
     Context: {context}
     Answer: <|eot_id|><|start_header_id|>assistant<|end_header_id|>
@@ -249,11 +231,10 @@ llm_formatter = ChatOllama(model=local_llm, temperature=0, callbacks=callback_ma
 
 prompt_template= PromptTemplate(
     template=""" <|begin_of_text|><|start_header_id|>system<|end_header_id|> 
-    You are an assistant for question-answering tasks. Often, the context might be in code, descriptions or tables, do your best to format it nicely and then analyse them.
-    You can try to identify the specific things mentioned in the question and work from there.
-    Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. 
-    If you dont know, also mention what you could discern specifically from the context as well as what you think you might need to answer the given question.
-    
+    You are an assistant for question-answering tasks. Often, the context might be in code, descriptions, tables and JSON, do your best to analyse them.\n
+    You can try to identify the specific things mentioned in the question and work from there.\n
+    Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. \n
+    If you dont know, also mention what you could discern specifically from the context as well as what you think you might need to answer the given question.\n
     
     <|eot_id|><|start_header_id|>user<|end_header_id|>
     Question: {question}
@@ -262,6 +243,25 @@ prompt_template= PromptTemplate(
     """,
     input_variables=["question","context"],
 )
+
+prompt_template_history= PromptTemplate(
+    template=""" <|begin_of_text|><|start_header_id|>system<|end_header_id|> 
+    You are an assistant for question-answering tasks. Often, the context might be in code, descriptions, tables and JSON, do your best to analyse them.\n
+    You can try to identify the specific things mentioned in the question and work from there.\n
+    Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. \n
+    If you dont know, also mention what you could discern specifically from the context as well as what you think you might need to answer the given question.\n
+    If your Chat history is provided to you, please take into account the history of the chat and answer with it in mind.\n
+    The format of the chat history is a list of lists. An example is [["my question", "your response"],["my question", None]].\n
+    
+    <|eot_id|><|start_header_id|>user<|end_header_id|>
+    Question: {question}
+    Context: {context}
+    Chat History: {history}
+    Answer: <|eot_id|><|start_header_id|>assistant<|end_header_id|>
+    """,
+    input_variables=["question","context", "history"],
+)
+
 llm_main = ChatOllama(model=local_llm, temperature=0, callbacks=callback_manager)
 
 
@@ -273,24 +273,41 @@ def format_history(msg, history):
     chat_history.append({"role": "user", "content": msg})
     return chat_history
 
-def generate_response(message, history, validate=False, check_hallucination=False, check_context=False):
+def generate_response(message, history, top_k, top_p, temperature, chat_history=False, validate=False, check_hallucination=False, check_context=False):
     if history is None:
         history = []
 
+    print("history", history)
     validation_agent = retrieval_grader
     hallucination_agent = hallucination_grader
 
     # # Retrieve and combine documents
-    # combined_docs = retrieve_and_combine_documents(message, retriever)
-    # combined_docs_string = "\n\n".join([str(doc) for doc in combined_docs])
+    combined_docs, error_code_list = retrieve_and_combine_documents(message)
 
-    error_code = extract_error_code(message)
-    combined_docs_string = search_df(loaded_df, search_col , error_code)
+    #Load the saved DataFrame
+    loaded_df = load_df("db/MediclaimFS.pkl")
+
+    #search the loaded DataFrame
+    search_col = 'Error Code'
+
+    excel_result = ""
+    if error_code_list != []:
+        for error_index in range(0, len(error_code_list)):
+            excel_result += search_df(loaded_df, search_col , error_code_list[error_index])
+            excel_result += "\n\n"
+
+    combined_docs_string = "\n\n".join([str(doc) for doc in combined_docs]) + "\n\n" + "From Excel:" + "\n" + excel_result
+
     print(combined_docs_string)
 
     # Generate the main response
-    prompt = prompt_template.format(question=message, context=combined_docs_string)
-    response = llm_main.stream(prompt)
+    if chat_history:
+        prompt = prompt_template_history.format(question=message, context=combined_docs_string, history=history)
+        print("prompting with history: ", history)
+    else:
+        prompt = prompt_template.format(question=message, context=combined_docs_string) 
+
+    response = llm_main.stream(prompt, top_k = int(top_k), top_p = float(top_p), temperature = float(temperature))
     result = ""
     for partial_answer in response:
         result += partial_answer.content
@@ -332,33 +349,125 @@ def add_message(history, message):
         history.append([message, None])
     return history, gr.update(value="")
 
-with gr.Blocks() as demo:
-    chatbot = gr.Chatbot([], elem_id="chatbot", bubble_full_width=False)
-    message_input = gr.Textbox(placeholder="Enter message...", show_label=False)
-    context_checkbox = gr.Checkbox(label="Show Context")
-    validate_checkbox = gr.Checkbox(label="Validate Documents")
-    hallucination_checkbox = gr.Checkbox(label="Check Hallucination")
-    
+with gr.Blocks(
+    theme=gr.themes.Soft(primary_hue="slate"),
+    js=JS_LIGHT_THEME,
+    css=CSS,
+) as demo:
+    gr.Markdown("## Day2Ops Chatbot 🤖")
 
-    with gr.Row():
-        top_k = gr.Slider(0.0,100.0, label="top_k", value=40, info="Reduces the probability of generating nonsense. A higher value (e.g. 100) will give more diverse answers, while a lower value (e.g. 10) will be more conservative. (Default: 40)")
-        top_p = gr.Slider(0.0,1.0, label="top_p", value=0.9, info=" Works together with top-k. A higher value (e.g., 0.95) will lead to more diverse text, while a lower value (e.g., 0.5) will generate more focused and conservative text. (Default: 0.9)")
-        temp = gr.Slider(0.0,2.0, label="temperature", value=0.8, info="The temperature of the model. Increasing the temperature will make the model answer more creatively. (Default: 0.8)")
+    with gr.Tab("Interface"):
+        sidebar_state = gr.State(True)
+        with gr.Row():
+            with gr.Column(
+                variant="panel", scale=10, visible=sidebar_state.value
+            ) as setting:
+                with gr.Column():
+                    status = gr.Textbox(
+                        label="Status", value="Ready!", interactive=False
+                    )
+                    language = gr.Radio(
+                        label="Language",
+                        choices=["eng"],
+                        value="eng",
+                        interactive=True,
+                    )
+                    model = gr.Dropdown(
+                        label="Choose Model:",
+                        choices=[
+                            "llama3:latest",
+                        ],
+                        value="llama3:latest",
+                        interactive=True,
+                        allow_custom_value=True,
+                    )
+                    chat_history = gr.Checkbox(label="Enable message memory (takes longer the more you query)")
+                    context_checkbox = gr.Checkbox(label="Show Context (takes longer)")
+                    validate_checkbox = gr.Checkbox(label="Validate Documents if relevant (takes longer)")
+                    hallucination_checkbox = gr.Checkbox(label="Check if there is hallucination of answer (takes longer)")
+                    check_answer_checkbox = gr.Checkbox(label="Check answer if relevant to question (takes longer)")
+
+            with gr.Column(scale=30, variant="panel"):
+                chatbot = gr.Chatbot(
+                    elem_id="chatbot",
+                    layout="bubble",
+                    value=[],
+                    height=550,
+                    scale=2,
+                    show_copy_button=True,
+                    bubble_full_width=False,
+                    avatar_images=("assets/user.png","assets/bot.png")
+                )
+                with gr.Row():
+                    message_input = gr.Textbox(
+                        placeholder="Enter message...", 
+                        show_label=False, 
+                        scale=3, 
+                        lines=1
+                    )
+
+                    submit_btn = gr.Button("Submit",scale=1)
+                
+
+                with gr.Row(variant="panel"):
+                    undo_btn = gr.Button(value="Undo", min_width=20)
+                    clear_btn = gr.Button(value="Clear", min_width=20)
+                    reset_btn = gr.Button(value="Reset", min_width=20)
 
 
-    clear_btn = gr.Button("Clear")
+    with gr.Tab("Settings"):
+        with gr.Row():
+            top_k = gr.Slider(0.0,100.0, label="top_k", value=40, info="Reduces the probability of generating nonsense. A higher value (e.g. 100) will give more diverse answers, while a lower value (e.g. 10) will be more conservative. (Default: 40)")
+            top_p = gr.Slider(0.0,1.0, label="top_p", value=0.9, info=" Works together with top-k. A higher value (e.g., 0.95) will lead to more diverse text, while a lower value (e.g., 0.5) will generate more focused and conservative text. (Default: 0.9)")
+            temp = gr.Slider(0.0,2.0, label="temperature", value=0.8, info="The temperature of the model. Increasing the temperature will make the model answer more creatively. (Default: 0.8)")
+
+
+    with gr.Tab("Output"):
+        with gr.Row(variant="panel"):
+            log = gr.Code(
+                label="", language="markdown", interactive=False, lines=30
+            )
+            demo.load(
+                logger_instance.read_logs,
+                outputs=[log],
+                every=1,
+                show_progress="hidden",
+                scroll_to_output=True,
+            )
+                
     state = gr.State([])  # Initialize state as an empty list to hold the chat history
 
-    def gradio_chat_ollama(history, validate, check_hallucination, check_context):
+    def gradio_chat_ollama(history, top_k, top_p, temperature, chat_history, validate, check_hallucination, check_context):
         message = history[-1][0] if history else ""
-        generator = generate_response(message, history, validate, check_hallucination, check_context)
+        generator = generate_response(message, history, top_k, top_p, temperature, chat_history, validate, check_hallucination, check_context)
         for response in generator:
             yield response
 
-    chat_msg = message_input.submit(add_message, [state, message_input], [state, chatbot]).then(
-        gradio_chat_ollama, [state, validate_checkbox, hallucination_checkbox, context_checkbox], [chatbot, state]
+    chat_msg = message_input.submit(add_message, [state, message_input], [state, chatbot]
+    ).then(
+        lambda: "Processing...", None, status
+    ).then(
+        gradio_chat_ollama, [state, top_k, top_p, temp, chat_history, validate_checkbox, hallucination_checkbox, context_checkbox], [chatbot, state]
+    ).then(
+        lambda: "", None, message_input  # Clear the textbox
+    ).then(
+        lambda: "Completed!", None, status
     )
+
+    submit_btn.click(add_message, [state, message_input], [state, chatbot]
+    ).then(
+        lambda: "Processing...", None, status
+    ).then(
+        gradio_chat_ollama, [state, top_k, top_p, temp, chat_history, validate_checkbox, hallucination_checkbox, context_checkbox], [chatbot, state]
+    ).then(
+        lambda: "", None, message_input  # Clear the textbox
+    ).then(
+        lambda: "Completed!", None, status
+    )
+    
     clear_btn.click(lambda: [], None, chatbot, queue=False)  # Clear the chat
 
+    
+
     demo.queue()
-    demo.launch(show_error=True, auth=("day2ops", "nphc"))
+    demo.launch(show_error=True)
