@@ -3,3 +3,4 @@ files
 db
 .DS_Store
 /__pycache__
+/data/ollama

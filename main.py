@@ -17,6 +17,9 @@ from langchain.callbacks.manager import CallbackManager
 
 local_llm="llama3"
 logger_instance = Logger("logfile.txt")
+ollama_host = os.getenv("OLLAMA_HOST", "ollama-container")
+ollama_port = os.getenv("OLLAMA_PORT", "11434")
+ollama_url = f"http://{ollama_host}:{ollama_port}"
 
 ### Extract from Excel
 def parse_and_save_excel(file_path, sheet_name, save_path):
@@ -64,7 +67,7 @@ def search_df(df, search_column, search_value):
 
 
 ### Document grader
-llm = ChatOllama(model=local_llm, format="json", temperature = 0)
+llm = ChatOllama(base_url=ollama_url, model=local_llm, format="json", temperature = 0)
 prompt= PromptTemplate(
     template=""" <|begin_of_text|><|start_header_id|>system<|end_header_id|> 
     You are a grader assessing relevance of a retrieved document to a user question. 
@@ -83,7 +86,7 @@ retrieval_grader = prompt | llm | JsonOutputParser()
 
 ###Error identifier
 #LLM
-llm = ChatOllama(model=local_llm, format="json", temperature = 0)
+llm = ChatOllama(base_url=ollama_url, model=local_llm, format="json", temperature = 0)
 prompt= PromptTemplate(
     template=""" <|begin_of_text|><|start_header_id|>system<|end_header_id|> 
     You are an indentifier.
@@ -133,7 +136,7 @@ def retrieve_and_combine_documents(question):
                 skip_lines -= 1
 
                 if error_code_list[error_index] in lines[i] and not skip:
-                    docu_count += 1
+                    doc_count += 1
                     start = max(0, i - 15)
                     end = min(len(lines), i + 7)
                     snippet = ''.join(lines[start:end])
@@ -174,7 +177,7 @@ def retrieve_and_combine_documents(question):
 
 
 ### Hallucination checker
-llm = ChatOllama(model=local_llm, format="json", temperature=0)
+llm = ChatOllama(base_url=ollama_url, model=local_llm, format="json", temperature=0)
 prompt= PromptTemplate(
     template=""" <|begin_of_text|><|start_header_id|>system<|end_header_id|> 
     You are a grader assessing whether an answer is grounded in / supported by a set of facts.\n
@@ -193,7 +196,7 @@ hallucination_grader = prompt | llm | JsonOutputParser()
 
 
 ### Answer grader
-llm = ChatOllama(model=local_llm, format="json", temperature=0)
+llm = ChatOllama(base_url=ollama_url, model=local_llm, format="json", temperature=0)
 prompt= PromptTemplate(
     template=""" <|begin_of_text|><|start_header_id|>system<|end_header_id|> 
     You are a grader assessing whether an answer is addressing the question properly.\n
@@ -214,7 +217,7 @@ context_formatting_template = PromptTemplate(
     You are an assistant for formatting tasks. Do not alter the content or add in any new content.\n
     You are only in charge of reformatting the context given to you. \n
     The context is parsed from a pdf and might be part of code, descriptions or tables. Do your best to format it nicely and do not format everything into code by adding "```" at the start.\n
-    Only format into code when required such as for "definition" which can appear more than once.\n
+    Only format into code by adding "```" at the front and back for all "definition" blocks which can appear more than once.\n  
     At the end of the context, there should be a JSON string, format it into a table if suitable and ensure it is not in a '<code>' block.\n
     Format the given "context" variable and return it in the format "Context: (formatted context)". \n
     If no "context" variable is given, just return an empty string.\n
@@ -225,7 +228,7 @@ context_formatting_template = PromptTemplate(
     input_variables=["context"],
 )
 callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
-llm_formatter = ChatOllama(model=local_llm, temperature=0, callbacks=callback_manager)
+llm_formatter = ChatOllama(base_url=ollama_url, model=local_llm, temperature=0, callbacks=callback_manager)
 
 
 
@@ -262,7 +265,7 @@ prompt_template_history= PromptTemplate(
     input_variables=["question","context", "history"],
 )
 
-llm_main = ChatOllama(model=local_llm, temperature=0, callbacks=callback_manager)
+llm_main = ChatOllama(base_url=ollama_url, model=local_llm, temperature=0, callbacks=callback_manager)
 
 
 def format_history(msg, history):
@@ -293,8 +296,10 @@ def generate_response(message, history, top_k, top_p, temperature, chat_history=
     excel_result = ""
     if error_code_list != []:
         for error_index in range(0, len(error_code_list)):
-            excel_result += search_df(loaded_df, search_col , error_code_list[error_index])
-            excel_result += "\n\n"
+            excel_searched = search_df(loaded_df, search_col , error_code_list[error_index])
+            if excel_searched:
+                excel_result += excel_searched
+                excel_result += "\n\n"
 
     combined_docs_string = "\n\n".join([str(doc) for doc in combined_docs]) + "\n\n" + "From Excel:" + "\n" + excel_result
 
@@ -326,7 +331,7 @@ def generate_response(message, history, top_k, top_p, temperature, chat_history=
 
     # Perform validation check if requested
     if validate:
-        documents = validation_agent.invoke({"question": message, "document": doc_text})
+        documents = validation_agent.invoke({"question": message, "document": combined_docs_string})
         validation_result = "Validation Check: Documents validated successfully."
         result += "\n\n" + validation_result
         history[-1][1] = result
@@ -470,4 +475,9 @@ with gr.Blocks(
     
 
     demo.queue()
-    demo.launch(show_error=True)
+    # demo.launch(show_error=True)
+
+
+if __name__ == "__main__":
+    # demo.launch(show_error=True)
+    demo.launch(server_name="0.0.0.0", server_port=7860, show_error=True)

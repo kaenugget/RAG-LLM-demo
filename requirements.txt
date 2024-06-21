@@ -1,11 +1,5 @@
-jupyter
-ipykernel
 langchain_community
-langchain
-langchain-text-splitters
-langgraph
-tiktoken
-chromadb
-pip-system-certs
+# pip-system-certs
 gradio
-openpyxl
+# openpyxl
+pandas

@@ -1,0 +1,13 @@
+FROM ollama/ollama
+
+# # Copy the start_service.sh script into the container
+# COPY start_service.sh /app/start_service.sh
+
+# # Ensure the script is executable
+# RUN chmod +x /app/start_service.sh
+
+# Expose the port Ollama listens on
+EXPOSE 11434
+
+# # Set the entrypoint to run the script
+# ENTRYPOINT ["/app/start_service.sh"]
