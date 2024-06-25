@@ -182,7 +182,7 @@ prompt= PromptTemplate(
     template=""" <|begin_of_text|><|start_header_id|>system<|end_header_id|> 
     You are a grader assessing whether an answer is grounded in / supported by a set of facts.\n
     Give a binary score 'yes' or 'no' score to indicate whether the answer is grounded in / supported by a set of facts.\n
-    Provide the binary score as a JSON with a single ey 'score' and no preamble or explanation.\n
+    Provide the binary score as a JSON with a single key 'score' and no preamble or explanation.\n
     <|eot_id|><|start_header_id|>user<|end_header_id|>
     Here are the facts: 
     \n-------\n 
@@ -217,8 +217,8 @@ context_formatting_template = PromptTemplate(
     You are an assistant for formatting tasks. Do not alter the content or add in any new content.\n
     You are only in charge of reformatting the context given to you. \n
     The context is parsed from a pdf and might be part of code, descriptions or tables. Do your best to format it nicely and do not format everything into code by adding "```" at the start.\n
-    Only format into code by adding "```" at the front and back for all "definition" blocks which can appear more than once.\n  
-    At the end of the context, there should be a JSON string, format it into a table if suitable and ensure it is not in a '<code>' block.\n
+    Only the definition blocks should be formatted into code by adding "```" at the front and back for all "definition" blocks which can appear more than once.\n  
+    At the end of the context, there should be a JSON string, format it into a table if suitable and ensure it is not in a '<code>' block or within a "```".\n
     Format the given "context" variable and return it in the format "Context: (formatted context)". \n
     If no "context" variable is given, just return an empty string.\n
     <|eot_id|><|start_header_id|>user<|end_header_id|>
@@ -479,5 +479,4 @@ with gr.Blocks(
 
 
 if __name__ == "__main__":
-    # demo.launch(show_error=True)
     demo.launch(server_name="0.0.0.0", server_port=7860, show_error=True)
