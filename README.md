@@ -26,7 +26,7 @@ To get started, follow these steps:
 
 1. Clone the repository:
    ```sh
-   git clone git@sgts.gitlab-dedicated.com:wog/moh/nphc/moh-nphc/platform/nphc-day2ops-rag-llm.git
+   git clone 
    cd nphc-day2ops-rag-llm
    ```
 
