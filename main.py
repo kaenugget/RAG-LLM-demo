@@ -507,7 +507,7 @@ def upload_file_to_s3(file_paths, folder_name):
     clear_s3_folder(folder_name)
 
     if folder_name == "pkl":
-        sheet_name = "Business Rules"
+        sheet_name = "ecommerce_error_data"
         file_path = file_paths[0]
         base_filename = os.path.splitext(os.path.basename(file_path.name))[0] + '.pkl'
         upload_path = os.path.join(folder_name, base_filename)
