@@ -11,10 +11,10 @@ COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the working directory contents into the container at /app
-COPY . /app
-
-# Ensure the required folders exist
-RUN mkdir -p /app/assets /app/db
+COPY assets /app/assets
+COPY tests /app/tests
+COPY theme.py /app/theme.py
+COPY main.py /app/main.py
 
 # Make port 7860 available to the world outside this container
 EXPOSE 7860

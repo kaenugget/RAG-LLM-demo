@@ -1,13 +1,31 @@
+# Stage 1: Build the helper
+FROM alpine:latest AS helper
+
+# Install wget, docker-client, and curl
+RUN apk add --no-cache wget docker-cli curl
+
+# Copy the wait-for-it.sh and start_service.sh scripts into the container
+COPY wait-for-it.sh /app/wait-for-it.sh
+COPY start_service.sh /app/start_service.sh
+
+# Ensure the scripts have the correct permissions and format
+RUN chmod +x /app/wait-for-it.sh && chmod +x /app/start_service.sh
+
+# Stage 2: Build the Ollama container
 FROM ollama/ollama
 
-# # Copy the start_service.sh script into the container
-# COPY start_service.sh /app/start_service.sh
+# Install curl
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# # Ensure the script is executable
-# RUN chmod +x /app/start_service.sh
+# Copy the helper scripts from the first stage
+COPY --from=helper /app/wait-for-it.sh /app/wait-for-it.sh
+COPY --from=helper /app/start_service.sh /app/start_service.sh
+
+# Ensure the scripts have the correct permissions
+RUN chmod +x /app/wait-for-it.sh && chmod +x /app/start_service.sh
 
 # Expose the port Ollama listens on
 EXPOSE 11434
 
-# # Set the entrypoint to run the script
-# ENTRYPOINT ["/app/start_service.sh"]
+# Set the entrypoint to run the helper script
+ENTRYPOINT ["/app/start_service.sh"]
