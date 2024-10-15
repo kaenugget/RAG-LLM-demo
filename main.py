@@ -185,7 +185,7 @@ prompt_template= PromptTemplate(
     If you dont know, also mention what you could discern specifically from the context as well as what you think you might need to answer the given question.\n
     
     For FAQ questions, you can answer in this format:
-    Provide a concise FAQ on error:
+    Provide a concise FAQ on ERR001:
     what is the error
     what are the triggers
     What are the fields needed to rectify the error
@@ -198,6 +198,7 @@ prompt_template= PromptTemplate(
     """,
     input_variables=["question","context"],
 )
+# llm_main = prompt_template | llm | StrOutputParser()
 
 prompt_template_history= PromptTemplate(
     template=""" <|begin_of_text|><|start_header_id|>system<|end_header_id|> 
@@ -209,7 +210,7 @@ prompt_template_history= PromptTemplate(
     The format of the chat history is a list of lists. An example is [["my question", "your response"],["my question", None]].\n
     
     For FAQ questions, you can answer in this format, but answer to the point concisely and factually based on the context:
-    Provide a concise FAQ on error:
+    Provide a concise FAQ on ERR001:
     what is the error
     what are the triggers
     What are the fields needed to rectify the error
@@ -385,8 +386,8 @@ def retrieve_and_combine_documents(question):
 
                 if error_code_list[error_index] in lines[i] and not skip:
                     doc_count += 1
-                    start = max(0, i - 15)
-                    end = min(len(lines), i + 7)
+                    start = max(0, i - 1)
+                    end = min(len(lines), i + 5)
                     snippet = ''.join(lines[start:end])
 
                     header = f"Document {doc_count} for error {error_code_list[error_index]}:\n"
@@ -421,13 +422,12 @@ def retrieve_and_combine_documents(question):
             # print(result)
 
             if result != []:
-                print("Exact match found in txt for error", error_code_list[error_index])
-                print("-------------------------------")
+                print("-----------Exact match found in txt for error" + error_code_list[error_index] + "-----------")
             else:
-                 print(f"No Error Code {error_code_list[error_index]} found in the documents.")
+                 print(f"-----------No Error Code {error_code_list[error_index]} found in the documents-----------")
 
     else:
-        print("No Error Code found in the question.")
+        print("-----------No Error Code found in the question-----------")
 
     # print("combined docs:",combined_docs)
     return combined_docs, error_code_list, page_list
@@ -622,13 +622,13 @@ def generate_response(message, msg_context, history, top_k, top_p, temperature, 
         context_without_excel = "\n\n".join([str(doc) for doc in combined_docs]) 
         combined_docs_string =  context_without_excel + "\n\n" + "From Excel:" + "\n" + excel_result.to_string()
         print(f"final context: {combined_docs_string}")
-        print("aft final context-----------")
+        print(" -----------final context formulated-----------")
         
         # Setup for context formatting in a separate thread
 
         #add in error handling!!!!!!!
         futures['context'] = executor.submit(format_context, context_without_excel)
-        print("aft futures context-----------")
+        print("-----------starting to process context concurrently-----------")
 
     else:
         context_without_excel = ""
@@ -656,17 +656,17 @@ def generate_response(message, msg_context, history, top_k, top_p, temperature, 
                 chunk = chunk_futures[chunk_future]
                 print(f"Error retrieving result for chunk: {chunk[:100]}... Error: {e}")
 
-    # print("hi----------")
     if check_error:
         # Generate the main response
         if chat_history:
             prompt = prompt_template_history.format(question=message, context=combined_docs_string, history=history)
             # print("prompting with history: ", history)
-            print("error code prompt with history")
+            print("-----------FAQ prompting with history-----------")
 
         else:
             prompt = prompt_template.format(question=message, context=combined_docs_string) 
-            print("error code prompt without history")
+            print("-----------FAQ prompting without history-----------")
+
 
     # else:
     #     if chat_history:
@@ -685,7 +685,7 @@ def generate_response(message, msg_context, history, top_k, top_p, temperature, 
             print("XOM / general prompt without history")
             print("filtered chunks", filtered_chunks)
 
-    print("starting main response-------------------")
+    print("-----------starting main response-----------")
     result = ""
     # num_ctx = 4096
     # num_ctx = 8192
@@ -706,7 +706,7 @@ def generate_response(message, msg_context, history, top_k, top_p, temperature, 
         futures['grading'] = executor.submit(grade_response, message, main_result_response)
 
 
-    print("after main response-------------------")
+    print("-----------starting checks and returning formatted context-----------")
     if futures['context']:
         formatted_context = futures['context'].result()
     else:
@@ -775,6 +775,7 @@ def handle_query(query, msg_context, history, top_k, top_p, temperature, chat_hi
             q.put(response)  # Put each response in the queue
     finally:
         q.put(None)  # Signal that the generator is done
+
 
 def main_response(prompt, top_k, top_p, temperature):
     main_response = llm_main.stream(prompt, top_k=int(top_k), top_p=float(top_p), temperature=float(temperature))
