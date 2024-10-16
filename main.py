@@ -71,7 +71,7 @@ prompt= PromptTemplate(
     You are a grader assessing relevance of a retrieved document or dataframe to a user question. 
     If the document contains keywords related to the user question, grade it as relevant.
     It does not need to be a stringent test. The goal is to filter out erroneous retrievals. \n
-    Give a binary score 'yes' or 'no' score to indicate wherther the document is relevant to the question. \n
+    Give a binary score 'yes' or 'no' score to indicate whether the document is relevant to the question. \n
     Provide the binary score as a JSON with a single key 'score' and no preamble or explanation.\n
     <|eot_id|><|start_header_id|>user<|end_header_id|>
     Here is the retrieved document: \n\n {document}\n\n
@@ -88,10 +88,10 @@ validation_agent = prompt | llm | JsonOutputParser()
 llm = ChatOllama(base_url=ollama_url, model=local_llm, format="json", temperature = 0)
 error_identifier_prompt= PromptTemplate(
     template=""" <|begin_of_text|><|start_header_id|>system<|end_header_id|> 
-    You are an indentifier.
+    You are an identifier.
     Identify the error codes from the given question / sentence. An example could be VCA373 . Error codes usually start with a few capital alphabets followed by a few numbers\n
     It does not need to be a stringent test. The goal is to identify only the error codes and return that. \n
-    It MUST have both the alpahbets and numbers together.\n
+    It MUST have both the alphabets and numbers together.\n
     Provide the error codes as a JSON with a single key 'error_code' and no preamble or explanation.\n
     Return the error codes if they are present, else return an the JSON with the value as an empty listt for example 'error_code' : []. \n
     Put the error codes in a list. For example 'error_code' : ['VCA373'] .\n
@@ -184,12 +184,30 @@ prompt_template= PromptTemplate(
     Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. \n
     If you dont know, also mention what you could discern specifically from the context as well as what you think you might need to answer the given question.\n
     
-    For FAQ questions, you can answer in this format:
-    Provide a concise FAQ on ERR001:
+    For FAQ questions, you can answer in this format, but answer to the point concisely and factually based on the context:
+    Provide a concise FAQ on ERROR:
     what is the error
     what are the triggers
     What are the fields needed to rectify the error
     How to resolve this error
+
+    Example 1:
+    Q: **What is the error?**
+    A: The error "TITLE" occurs when there is more than one occurrence of payment or Other payment in the claim.
+
+    Q: **What are the triggers?**
+    A: The triggers for this error are:
+    Type of payment = ABC123 and Bill Category = OU
+    Type of payment = DEF456
+
+    Q: **What fields are needed to rectify the error?**
+    A: To resolve this error, the following fields must be in compliance:
+    Bill Category
+    TITLE
+    Type of payment
+
+    Q: **How to resolve this error?**
+    A: To resolve this error, ensure that there is only one occurrence of TITLE or Bill Category in the claim. If multiple Type of payment are present, correct the claim by removing duplicate claims and resubmit it.
 
     <|eot_id|><|start_header_id|>user<|end_header_id|>
     Question: {question}
@@ -210,11 +228,30 @@ prompt_template_history= PromptTemplate(
     The format of the chat history is a list of lists. An example is [["my question", "your response"],["my question", None]].\n
     
     For FAQ questions, you can answer in this format, but answer to the point concisely and factually based on the context:
-    Provide a concise FAQ on ERR001:
+    Provide a concise FAQ on ERROR:
     what is the error
     what are the triggers
     What are the fields needed to rectify the error
     How to resolve this error
+
+    Example 1:
+    Q: **What is the error?**
+    A: The error "TITLE" occurs when there is more than one occurrence of payment or Other payment in the claim.
+
+    Q: **What are the triggers?**
+    A: The triggers for this error are:
+    Type of payment = ABC123 and Bill Category = OU
+    Type of payment = DEF456
+
+    Q: **What fields are needed to rectify the error?**
+    A: To resolve this error, the following fields must be in compliance:
+    Bill Category
+    TITLE
+    Type of payment
+
+    Q: **How to resolve this error?**
+    A: To resolve this error, ensure that there is only one occurrence of TITLE or Bill Category in the claim. If multiple Type of payment are present, correct the claim by removing duplicate claims and resubmit it.
+
 
     <|eot_id|><|start_header_id|>user<|end_header_id|>
     Question: {question}
@@ -387,7 +424,7 @@ def retrieve_and_combine_documents(question):
                 if error_code_list[error_index] in lines[i] and not skip:
                     doc_count += 1
                     start = max(0, i - 1)
-                    end = min(len(lines), i + 5)
+                    end = min(len(lines), i + 4)
                     snippet = ''.join(lines[start:end])
 
                     header = f"Document {doc_count} for error {error_code_list[error_index]}:\n"
@@ -401,33 +438,39 @@ def retrieve_and_combine_documents(question):
                     skip_lines = 10
                     skip = True
 
-                    # Find the next two occurrences of page numbers from the `start` line
-                    page_pattern = r'(\d+)/495'
-                    pages = re.findall(page_pattern, '\n'.join(lines[start:]))
-                    print("page num: ", pages[:5])
-                    # Decrement each page number by one before adding to page_numbers
-                    page_numbers.extend([str(int(page) - 1) for page in pages[:2]])
+                    # Define the page pattern for "PageX"
+                    page_pattern = r'Page(\d+)'
+                    # Search after the 'start' line until a match is found
+                    for line in lines[start:]:
+                        match = re.search(page_pattern, line)
+                        if match:
+                            # Found a page, get its number and the next one
+                            page_number = int(match.group(1))
+                            page_numbers.extend([str(page_number), str(page_number + 1)])
+                            break  # Stop searching after finding the first occurrence
 
                     if len(matched_snippets) >= 4:
                         break
 
                 if skip_lines <= 0:
                     skip = False
-                    skip = 0
-
 
             result = matched_snippets[:4]
             combined_docs.append(result)
             page_list.extend(page_numbers[:2])
-            # print(result)
+
+            print(page_list)
 
             if result != []:
-                print("-----------Exact match found in txt for error" + error_code_list[error_index] + "-----------")
+                print("-----------Exact match found in txt for error " + error_code_list[error_index] + "-----------")
+                print("")
             else:
                  print(f"-----------No Error Code {error_code_list[error_index]} found in the documents-----------")
 
     else:
         print("-----------No Error Code found in the question-----------")
+        print("")
+        
 
     # print("combined docs:",combined_docs)
     return combined_docs, error_code_list, page_list
@@ -622,13 +665,16 @@ def generate_response(message, msg_context, history, top_k, top_p, temperature, 
         context_without_excel = "\n\n".join([str(doc) for doc in combined_docs]) 
         combined_docs_string =  context_without_excel + "\n\n" + "From Excel:" + "\n" + excel_result.to_string()
         print(f"final context: {combined_docs_string}")
-        print(" -----------final context formulated-----------")
+        print(" -----------final context compiled-----------")
+        print("")
         
         # Setup for context formatting in a separate thread
 
         #add in error handling!!!!!!!
         futures['context'] = executor.submit(format_context, context_without_excel)
-        print("-----------starting to process context concurrently-----------")
+        print("-----------processing context concurrently-----------")
+        print("")
+
 
     else:
         context_without_excel = ""
@@ -661,11 +707,11 @@ def generate_response(message, msg_context, history, top_k, top_p, temperature, 
         if chat_history:
             prompt = prompt_template_history.format(question=message, context=combined_docs_string, history=history)
             # print("prompting with history: ", history)
-            print("-----------FAQ prompting with history-----------")
+            # print("-----------FAQ prompting with history-----------")
 
         else:
             prompt = prompt_template.format(question=message, context=combined_docs_string) 
-            print("-----------FAQ prompting without history-----------")
+            # print("-----------FAQ prompting without history-----------")
 
 
     # else:
@@ -678,14 +724,16 @@ def generate_response(message, msg_context, history, top_k, top_p, temperature, 
     else:
         if chat_history:
             prompt = prompt_template_history.format(question=message, context=filtered_chunks, history=history)
-            print("XOM / general prompt with history")
+            # print("XOM / general prompt with history")
 
         else:
             prompt = prompt_template.format(question=message, context=filtered_chunks)
-            print("XOM / general prompt without history")
-            print("filtered chunks", filtered_chunks)
+            # print("XOM / general prompt without history")
+            # print("filtered chunks", filtered_chunks)
 
     print("-----------starting main response-----------")
+    print("")
+
     result = ""
     # num_ctx = 4096
     # num_ctx = 8192
