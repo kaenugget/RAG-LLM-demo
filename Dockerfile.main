@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the working directory contents into the container at /app
 COPY assets /app/assets
-COPY tests /app/tests
+# COPY tests /app/tests
 COPY theme.py /app/theme.py
 COPY main.py /app/main.py
 
