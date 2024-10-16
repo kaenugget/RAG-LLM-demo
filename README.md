@@ -1,4 +1,4 @@
-# NPHC day2ops RAG-LLM
+# RAG-LLM
 <img src="assets/.png" alt="Project Logo" width="200"/>
 
 ## Table of Contents
