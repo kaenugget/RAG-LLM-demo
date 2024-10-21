@@ -465,7 +465,7 @@ def retrieve_and_combine_documents(question):
                 print("-----------Exact match found in txt for error " + error_code_list[error_index] + "-----------")
                 print("")
             else:
-                 print(f"-----------No Error Code {error_code_list[error_index]} found in the documents-----------")
+                print(f"-----------No Error Code {error_code_list[error_index]} found in the documents-----------")
 
     else:
         print("-----------No Error Code found in the question-----------")
