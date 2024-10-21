@@ -26,8 +26,7 @@ To get started, follow these steps:
 
 1. Clone the repository:
    ```sh
-   git clone 
-   cd nphc-day2ops-rag-llm
+   gh repo clone kaenugget/RAG-LLM-demo
    ```
 
 2. Create a virtual environment:
@@ -113,8 +112,8 @@ Here are some videos and screenshots of **rag-llm** in action:
 
 ## To do list
 - [X] Implement proper working chatbot interface
-- [X] Ingest Healthcare error codes PDF
-- [X] Ingest Mediclaim excel file with business logic
+- [X] Ingest error codes PDF / txt
+- [X] Ingest excel file with business logic
 - [X] Setup upload of .txt files to aws
 - [X] Setup upload of .xlsx files and converting to .pkl before uploading to aws
 - [X] Setup upload of image files of pdf to aws
