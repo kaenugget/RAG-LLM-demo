@@ -1,5 +1,5 @@
 # RAG-LLM
-<img src="assets/.png" alt="Project Logo" width="200"/>
+<img src="assets/bot.png" alt="Project Logo" width="200"/>
 
 ## Table of Contents
 - [Introduction](#introduction)
@@ -13,7 +13,7 @@
 - [Contact](#contact)
 
 ## Introduction
-Welcome to **NPHC day2ops RAG-LLM**! This project aims to consolidate error code documentation and have a chatbot interface to answer any queries regarding the error codes. However due to the nature of the setup, queries can be slow! 
+Welcome to **RAG-LLM**! This project aims to consolidate error code documentation and have a chatbot interface to answer any queries regarding the error codes. However due to the nature of the setup, queries can be slow! 
 
 ## Features
 - 🚀 **Feature 1**: You can chat with it and ask about any error codes. You can enable session chat history (but takes longer for every additional query)
@@ -102,7 +102,7 @@ To set up and run the application using Docker and Docker Compose, follow these 
    ```
 
 ## Demo
-Here are some videos and screenshots of **nphc-day2ops-rag-llm** in action:
+Here are some videos and screenshots of **rag-llm** in action:
 <br>*disclaimer these are gifs and are sped up heavily<br>
 ![Video demo 1](assets/demo/rag-llm-demo.gif)
 ![Video demo 2](assets/demo/rag-llm-demo-with-context-and-history.gif)
@@ -133,8 +133,8 @@ Here are some videos and screenshots of **nphc-day2ops-rag-llm** in action:
 - [X] Show relevant Excel Table based on question
 - [X] Fix excel table out of chatbot width, unable to side scroll
 - [X] Implement Answer grader agent logic
-- [X] Decouple DB with main container
-- [X] Reduce number of containers with muti-stage builds
+- [X] Decouple DB with main container using aws S3
+- [X] Reduce number of containers with multi-stage builds
 - [X] Include unit tests
 - [X] Use local stack and boto3 to integrate with AWS
 - [X] Implement parallel processing such as using threadpool etc.
